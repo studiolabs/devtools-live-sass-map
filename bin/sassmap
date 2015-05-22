@@ -23,7 +23,7 @@ var yargs = require('yargs')
     .option('e', {
       alias: 'extensions',
       default: ['scss', 'css'],
-      describe: 'File extensions to include in the graph',
+      describe: 'File extensions to include in the map',
       type: 'array',
     })
 
@@ -82,24 +82,24 @@ try {
     }));
   }
 
-  var graph = require('../').parseDir(directory, {
+  var map = require('../').parseDir(directory, {
     extensions: argv.extensions,
     loadPaths: loadPaths,
   });
 
   if(argv.json) {
-    console.log(JSON.stringify(graph.index, null, 4));
+    console.log(JSON.stringify(map.index, null, 4));
     process.exit(0);
   }
 
   if (command === 'ancestors') {
-    graph.visitAncestors(path.resolve(file), function(f) {
+    map.visitAncestors(path.resolve(file), function(f) {
       console.log(f);
     });
   }
 
   if (command === 'descendents') {
-    graph.visitDescendents(path.resolve(file), function(f) {
+    map.visitDescendents(path.resolve(file), function(f) {
       console.log(f);
     });
   }
