@@ -5,6 +5,8 @@ var path = require('path');
 var _ = require('lodash');
 var glob = require('glob');
 
+var util = require('util');
+
 function parseData(content) {
   //strip comment
   content = new String(content).replace(/\/\*.+?\*\/|\/\/.*(?=[\n\r])/g, '');
@@ -12,8 +14,8 @@ function parseData(content) {
   var mixin = [];
   var imports = [];
   var property = [];
+  var extended = [];
   var extend = [];
-  var extensions = [];
   // find sass var;
   var position = 0;
 
@@ -41,8 +43,9 @@ function parseData(content) {
 
       var matchExtend = regExtend.exec(line);
       if (matchExtend) {
+
         var mix = matchExtend[2].trim();
-        extensions.push('%' + mix);
+        extended.push('%' + mix);
       }
     }
 
@@ -50,6 +53,7 @@ function parseData(content) {
 
     if (matchImport) {
         var importFile = matchImport[1].trim();
+
         imports.push(importFile);
       }
 
@@ -62,11 +66,11 @@ function parseData(content) {
 
   var varUsed = content.match(/\$([a-zA-Z0-9-\.]+)/g) || [];
   var mixUsed = content.match(/([a-zA-Z0-9-\.]+)\(/g) || [];
-  var extendUsed = content.match(/\%([a-zA-Z0-9-\.]+)( ?)([{])/g) || [];
+  var extendedUsed = content.match(/\%([a-zA-Z0-9-\.]+)( ?)([{])/g) || [];
 
-  if (extendUsed.length > 0) {
+  if (extendedUsed.length > 0) {
     var regExtend = /\%([a-zA-Z0-9-\.]+)( ?)([{])/;
-    extendUsed.forEach(function(line, index) {
+    extendedUsed.forEach(function(line, index) {
       var matchExtend = regExtend.exec(line);
       if (matchExtend) {
         extend.push('%' + matchExtend[1]);
@@ -79,12 +83,20 @@ function parseData(content) {
   return {
     data: _.uniq(data),
     imports: _.uniq(imports),
+    extended: _.uniq(extended),
+    extensions: _.uniq(extended),
     extend: _.uniq(extend),
-    extensions: _.uniq(extensions),
     property: _.uniq(property)
   };
 }
 
+
+function processOptions(options) {
+  return _.assign({
+    loadPaths: [process.cwd()],
+    extensions: ['scss', 'css'],
+  }, options);
+}
 
 // resolve a sass module to a path
 
@@ -92,10 +104,13 @@ function resolveSassPath(sassPath, loadPaths, extensions) {
   // trim sass file extensions
   var re = new RegExp('(\.(' + extensions.join('|') + '))$', 'i');
   var sassPathName = sassPath.replace(re, '');
+
+
   // check all load paths
   var i, j, length = loadPaths.length,
     scssPath, partialPath;
   for (i = 0; i < length; i++) {
+
     for (j = 0; j < extensions.length; j++) {
       scssPath = path.normalize(loadPaths[i] + '/' + sassPathName + '.' + extensions[j]);
       if (fs.existsSync(scssPath)) {
@@ -117,91 +132,164 @@ function resolveSassPath(sassPath, loadPaths, extensions) {
   return false;
 }
 
-function SassMap(options, dir) {
-  this.dir = dir;
-  this.loadPaths = options.loadPaths || [];
-  this.extensions = options.extensions || [];
-  this.index = [];
-  this.link = [];
+function SassMap(filepath,options) {
 
-  if (dir) {
-    var map = this;
-    _(glob.sync(dir + '/**/*.@(' + this.extensions.join('|') + ')', {
-      dot: true
-    })).forEach(function(file) {
-      map.addFile(path.resolve(file));
-    }).value();
+  filepath = path.resolve(filepath);
+  if (fs.lstatSync(filepath).isFile()) {
+    this.filepath =filepath;
+    options = processOptions(options);
+    this.loadPaths = options.loadPaths || [];
+    this.extensions = options.extensions || [];
+    this.index = [];
+    this.dependencie = [];
+    this.extend = [];
+    this.addFile(filepath);
+    this.createMap();
   }
 };
 
-SassMap.prototype.getIncludedLink = function (filepath) {
+SassMap.prototype.getExtends = function (filepath) {
 
-      var importsLinks = [];
-
+      var importsExtends = [];
       var file = this.index[filepath];
 
-      importsLinks = importsLinks.concat(file.links);
-
+      importsExtends = importsExtends.concat(file.extended);
       for (var i in file.imports) {
-        var link = file.imports[i];
-       // console.log(link);
-        importsLinks = importsLinks.concat(this.getIncludedLink(link));
+        var extend = file.imports[i];
+        if(extend !== filepath){
+          importsExtends = this.getExtends(extend).concat(importsExtends);
+        }
       }
 
-      return importsLinks;
+      return importsExtends;
 }
 
-SassMap.prototype.inheritsLinks = function (filepath) {
+SassMap.prototype.getDependencies = function (filepath) {
 
+      var importsDependencies = [];
       var file = this.index[filepath];
 
-      return _.uniq(this.getIncludedLink(filepath));
+      importsDependencies = importsDependencies.concat(file.dependencies);
 
-    };
+      for (var i in file.dependencies) {
+        var dependencie = file.dependencies[i];
+          importsDependencies = this.getDependencies(dependencie).concat(importsDependencies);
+      }
+
+      for (var i in file.imports) {
+        var imports = file.imports[i];
+          importsDependencies = this.getDependencies(imports).concat(importsDependencies);
+      }
 
 
-SassMap.prototype.resolveLink = function () {
+      return importsDependencies;
+}
 
-    // format link
-    for (var property in this.link) {
-      this.link[property] = _.uniq(this.link[property]);
+SassMap.prototype.inheritsDependencies = function (filepath) {
+
+  return _.uniq(this.getDependencies(filepath,false));
+
+};
+
+SassMap.prototype.inheritsExtends = function (filepath) {
+
+  return _.uniq(this.getExtends(filepath));
+
+};
+
+
+SassMap.prototype.createMap = function () {
+
+    // format dependencie
+    for (var property in this.dependencie) {
+      this.dependencie[property] = _.uniq(this.dependencie[property]);
     }
 
     for (var filepath in this.index) {
 
-      this.index[filepath].links = [];
-      var links = this.index[filepath].data.map(function(property){
-          return this.link[property]? this.link[property]: [];
+
+      this.index[filepath].dependencies = [];
+      var dependencies = this.index[filepath].data.map(function(property){
+
+       /* if(debug) {
+
+          console.log('------');
+          console.log(property);
+          console.log(this.dependencie[property]);
+          console.log(filepath);
+          console.log('------');
+        }*/
+       if( this.dependencie[property] !== undefined ){
+          if(this.dependencie[property].indexOf(filepath) === -1){
+              return this.dependencie[property];
+          }
+       }
+      return [];
       }.bind(this));
 
-      if(links.length>0){
-       this.index[filepath].links = _.uniq(links.reduce(function(a, b) {
+      if(dependencies.length>0){
+
+       this.index[filepath].dependencies = _.uniq(dependencies.reduce(function(a, b) {
           if(a && b)
             return a.concat(b);
-        }));
+        })
+       );
+
      }
 
+      this.index[filepath].extend.forEach(function(property){
+        if( this.extend[property] === undefined){
+          this.extend[property] = []
+        }
+        this.extend[property].push(filepath);
+      }.bind(this));
+
+    }
+
+    for (var extend in this.extend) {
+      this.extend[extend] = _.uniq(this.extend[extend]);
+    }
+//util.inspect(mapSass, { showHidden: true, depth: null })
+  var util = require('util');
+    for (var filepath in this.index) {
+      var extended = this.index[filepath].extended.map(function(extended){
+          if( this.extend[extended] !== undefined ){
+            if(this.extend[extended].indexOf(filepath) === -1){
+              return this.extend[extended];
+            }
+         }
+        return [];
+      }.bind(this));
+
+      if(extended.length>0){
+         this.index[filepath].extended = _.uniq(extended.reduce(function(a, b) {
+            if(a && b)
+              return a.concat(b);
+          }));
+
+       }
     }
 
     for (var filepath in this.index) {
-      this.index[filepath].include = this.inheritsLinks(filepath);
+     this.index[filepath].dependencies = this.inheritsDependencies(filepath);
+     this.index[filepath].extended = this.inheritsExtends(filepath);
     }
-
 
   };
 
 
-SassMap.prototype.registerLink = function (filepath,properties){
+SassMap.prototype.registerDependencie = function (filepath, properties){
   _.each(properties, function(property){
-    if(this.link[property] === undefined){
-      this.link[property] = [];
+    if(this.dependencie[property] === undefined){
+      this.dependencie[property] = [];
     }
-    this.link[property].push(filepath);
+    this.dependencie[property].push(filepath);
   }.bind(this));
 };
 
 // add a sass file to the SassMap
-SassMap.prototype.addFile = function(filepath, parent) {
+SassMap.prototype.addFile = function(filepath) {
+
   var entry = parseData(fs.readFileSync(filepath, 'utf-8'));
   var cwd = path.dirname(filepath);
 
@@ -209,9 +297,10 @@ SassMap.prototype.addFile = function(filepath, parent) {
     loadPaths, resolved;
   for (i = 0; i < length; i++) {
     loadPaths = _([cwd, this.dir]).concat(this.loadPaths).filter().uniq().value();
-    resolved = resolveSassPath(entry.imports[i], loadPaths, this.extensions);
-    if (!resolved) continue;
 
+    resolved = resolveSassPath(entry.imports[i], loadPaths, this.extensions);
+
+    if (!resolved) continue;
 
     // recurse into dependencies if not already enumerated
     if (!_.contains(entry.imports, resolved)) {
@@ -221,74 +310,15 @@ SassMap.prototype.addFile = function(filepath, parent) {
 
   }
 
-  this.registerLink(filepath,entry.property);
-
   this.index[filepath] = entry;
 
-};
+  this.registerDependencie(filepath,entry.property);
 
-// visits all files that are ancestors of the provided file
-SassMap.prototype.visitAncestors = function(filepath, callback) {
-  this.visit(filepath, callback, function(err, node) {
-    if (err || !node) return [];
-    return node.importedBy;
-  });
-};
 
-// visits all files that are descendents of the provided file
-SassMap.prototype.visitDescendents = function(filepath, callback) {
-  this.visit(filepath, callback, function(err, node) {
-    if (err || !node) return [];
-    return node.imports;
-  });
-};
 
-// a generic visitor that uses an edgeCallback to find the edges to traverse for a node
-SassMap.prototype.visit = function(filepath, callback, edgeCallback, visited) {
-  filepath = fs.realpathSync(filepath);
-  var visited = visited || [];
-  if (!this.index.hasOwnProperty(filepath)) {
-    edgeCallback('SassMap doesn\'t contain ' + filepath, null);
-  }
-  var edges = edgeCallback(null, this.index[filepath]);
-
-  var i, length = edges.length;
-  for (i = 0; i < length; i++) {
-    if (!_.contains(visited, edges[i])) {
-      visited.push(edges[i]);
-      callback(edges[i], this.index[edges[i]]);
-      this.visit(edges[i], callback, edgeCallback, visited);
-    }
-  }
-};
-
-function processOptions(options) {
-  return _.assign({
-    loadPaths: [process.cwd()],
-    extensions: ['scss', 'css'],
-  }, options);
-}
-
-module.exports.parseFile = function(filepath, options) {
-  if (fs.lstatSync(filepath).isFile()) {
-    filepath = path.resolve(filepath);
-    options = processOptions(options);
-    var map = new SassMap(options);
-    map.addFile(filepath);
-    map.resolveLink();
-    return map;
-  }
-  // throws
 };
 
 
 
-module.exports.parseDir = function(dirpath, options) {
-  if (fs.lstatSync(dirpath).isDirectory()) {
-    dirpath = path.resolve(dirpath);
-    options = processOptions(options);
-    var map = SassMap(options, dirpath);
-    return map;
-  }
-  // throws
-};
+module.exports = SassMap;
+
