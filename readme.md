@@ -103,4 +103,4 @@ npm test
 
 ## License
 
-MIT
+BSD
