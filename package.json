@@ -1,6 +1,6 @@
 {
   "name": "sass-map",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "generate a sass map with all file dependencies",
   "license": "MIT",
   "repository": {
