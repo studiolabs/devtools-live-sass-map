@@ -1,3 +1,47 @@
+# Browserify Unpack
+
+Bowserify unpack cut a browserify bundle in multiple files
+
+## Install
+
+Install with [npm](https://npmjs.org/package/browserify-unpack)
+
+```
+npm install --save-dev sass-unpack
+```
+
+## Usage
+
+Usage as a Node library:
+
+```js
+var fs = require('fs');
+var path = require('path');
+
+var SassUnpack = require('sass-unpack');
+
+var Package = new SassUnpack({ src: paths.build.sass.screen });
+
+var map = Package.unpackTo({ dest: paths.build.dest });
+
+var dir = path.resolve(paths.build.dest);
+
+fs.writeFileSync(dir + '/href.json', JSON.stringify(map.href));
+
+return fs.writeFileSync(dir + '/sass.json', JSON.stringify(map.sass));
+```
+
+## Authors
+
+[Steed Monteiro](http://twitter.com/SteedMonteiro).
+
+## License
+
+BSD
+
+
+
+
 # Sass Map
 
 Parses Sass files in a directory and exposes a map of dependencies
@@ -24,23 +68,20 @@ The command line tool will parse a graph and then either display ancestors, desc
 
 ```
 $ ./bin/sassmap --help
-Usage: bin/sassmap <command> [options] <dir> [file]
-
-Commands:
-  ancestors    Output the ancestors
-  descendents  Output the descendents
+Usage: sassunpack -f <file> [options]
 
 Options:
-  -I, --load-path   Add directories to the sass load path
-  -e, --extensions  File extensions to include in the map
-  -j, --json        Output the index in json
-  -h, --help        Show help
-  -v, --version     Show version number
+	-d, --destination  Path to save the output ( map.json + href.json + files)
+					[défaut: "/Volumes/WORKSPACE/Dropbox/www/dev/project/photobox/studio"]
+	-f, --file         File to unpack                                     [requis]
+	-n, --name         Output directory name                       [défaut: "dev"]
+	-v, --verbose      Debug                                       [défaut: false]
+	--version          Affiche le numéro de version                      [booléen]
+	-h, --help         Affiche de l'aide                                 [booléen]
 
-Examples:
-  ./bin/sassmap descendents test/fixtures test/fixtures/a.scss
-  /path/to/test/fixtures/b.scss
-  /path/to/test/fixtures/_c.scss
+Exemples:
+	sassunpack -f foo.scss  Cut a sass project in multiple css files
+
 ```
 
 ## API
@@ -55,17 +96,7 @@ Parses a file and builds its dependency map.
 
 ## Options
 
-#### loadPaths
 
-Type: `Array`
-Default: `[process.cwd]`
-
-Directories to use when resolved `@import` directives.
-
-#### extensions
-
-Type: `Array`
-Default: `['scss', 'css']`
 
 File types to be parsed.
 
