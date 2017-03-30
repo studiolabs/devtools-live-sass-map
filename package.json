@@ -1,11 +1,11 @@
 {
-  "name": "sass-map",
+  "name": "devtools-live-sass-map",
   "version": "0.3.4",
-  "description": "Sass Unpack cut a sass project in multiple css files",
+  "description": "Sass Unpack cut a sass project in multiple css files for Devtools Live",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/StudioLabs/sass-map"
+    "url": "https://github.com/StudioLabs/devtools-live-sass-map"
   },
   "author": {
     "name": "StudioLabs"
@@ -34,9 +34,9 @@
     "sassmap": "bin/sassmap"
   },
   "bugs": {
-    "url": "https://github.com/StudioLabs/sass-map/issues"
+    "url": "https://github.com/StudioLabs/devtools-live-sass-map/issues"
   },
-  "homepage": "https://github.com/StudioLabs/sass-map",
+  "homepage": "https://github.com/StudioLabs/devtools-live-sass-map",
   "maintainers": [
     {
       "name": "Steed Monteiro",
